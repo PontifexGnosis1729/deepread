@@ -1,4 +1,5 @@
 """This "graph" simply exposes an endpoint for a user to upload docs to be indexed."""
+import numpy as np
 
 from typing import Optional, Sequence
 
@@ -9,6 +10,9 @@ from langgraph.graph import StateGraph
 from retrieval_graph import retrieval
 from retrieval_graph.configuration import IndexConfiguration
 from retrieval_graph.state import IndexState
+
+from .topic_model import get_topic_modeling_info
+from .embeddings import get_embeddings_model
 
 
 def ensure_docs_have_user_id(
@@ -31,6 +35,27 @@ def ensure_docs_have_user_id(
     ]
 
 
+def add_topic_modeling_metadata(
+    docs: Sequence[Document]
+) -> list[Document]:
+    """Ensure that all documents have a user_id in their metadata.
+
+        docs (Sequence[Document]): A sequence of Document objects to process.
+
+    Returns:
+        list[Document]: A new list of Document objects with updated metadata.
+    """
+    embedding_model = get_embeddings_model()
+
+    texts = [doc.page_content for doc in docs]
+    embeddings = embedding_model.embed_documents(texts)
+    array_vectors = np.array(embeddings)
+
+    labeled_docs = get_topic_modeling_info(docs, array_vectors)
+
+    return labeled_docs
+
+
 async def index_docs(
     state: IndexState, *, config: Optional[RunnableConfig] = None
 ) -> dict[str, str]:
@@ -48,8 +73,9 @@ async def index_docs(
         raise ValueError("Configuration required to run index_docs.")
     with retrieval.make_retriever(config) as retriever:
         stamped_docs = ensure_docs_have_user_id(state.docs, config)
+        labelled_docs = add_topic_modeling_metadata(stamped_docs)
 
-        await retriever.aadd_documents(stamped_docs)
+        await retriever.aadd_documents(labelled_docs)
     return {"docs": "delete"}
 
 
