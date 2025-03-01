@@ -51,15 +51,13 @@ def make_weaviate_retriever(
     with weaviate.connect_to_local() as weaviate_client:
         store = WeaviateVectorStore(
             client=weaviate_client,
-            index_name=WEAVIATE_DOCS_INDEX_NAME,
+            index_name=os.environ["WEAVIATE_DOCS_INDEX_NAME"],
             text_key="text",
             embedding=embedding_model,
             attributes=["source", "title"],
         )
-        search_kwargs = configuration.search_kwargs
+        search_kwargs = configuration.search_kwargs or {}
 
-        search_filter = search_kwargs.setdefault("filter", {})
-        search_filter.update({"user_id": configuration.user_id})
         yield store.as_retriever(search_kwargs=search_kwargs)
 
 

@@ -54,13 +54,13 @@ def reduce_docs(
     if new == "delete":
         return []
     if isinstance(new, str):
-        return [Document(page_content=new, metadata={"id": str(uuid.uuid4())})]
+        return [Document(page_content=new, metadata={"thread_id": str(uuid.uuid4())})]
     if isinstance(new, list):
         coerced = []
         for item in new:
             if isinstance(item, str):
                 coerced.append(
-                    Document(page_content=item, metadata={"id": str(uuid.uuid4())})
+                    Document(page_content=item, metadata={"thread_id": str(uuid.uuid4())})
                 )
             elif isinstance(item, dict):
                 coerced.append(Document(**item))
