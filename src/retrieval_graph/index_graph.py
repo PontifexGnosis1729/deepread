@@ -11,8 +11,8 @@ from retrieval_graph import retrieval
 from retrieval_graph.configuration import IndexConfiguration
 from retrieval_graph.state import IndexState
 
-from .topic_model import get_topic_modeling_info
-from .embeddings import get_embeddings_model
+from retrieval_graph.topic_model import get_topic_modeling_info
+from retrieval_graph.embeddings import get_embeddings_model
 
 
 def ensure_docs_have_user_id(
@@ -38,7 +38,7 @@ def ensure_docs_have_user_id(
 def add_topic_modeling_metadata(
     docs: Sequence[Document]
 ) -> list[Document]:
-    """Ensure that all documents have a user_id in their metadata.
+    """Ensure that all documents have topic modeling metadata.
 
         docs (Sequence[Document]): A sequence of Document objects to process.
 

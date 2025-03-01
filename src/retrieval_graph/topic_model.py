@@ -70,10 +70,14 @@ def get_topic_modeling_info(docs: Sequence[Document], array_vectors: np.ndarray)
     topic_model, topics = perform_topic_modeling(texts, array_vectors)
 
     labeled_chunks_df = topic_model.get_document_info(texts)
+    labeled_chunks_df["Representation"] = labeled_chunks_df["Representation"].apply(json.dumps)
 
-    print(f"chunks_df: {type(labeled_chunks_df)}")
-    print(labeled_chunks_df.columns)
-    print(labeled_chunks_df.head())
+    labeled_docs = [
+        Document(
+            page_content=doc.page_content, metadata={**doc.metadata, "topic_name": name, "topic_representation": representation}
+        )
+        for doc, name, representation in zip(docs, labeled_chunks_df["Name"], labeled_chunks_df["Representation"])
+    ]
 
-    return labeled_chunks_df
+    return labeled_docs
 

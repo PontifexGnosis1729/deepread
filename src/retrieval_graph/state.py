@@ -28,7 +28,7 @@ from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
 
-from .custom_epubloader import load_epub_docs
+from retrieval_graph.custom_epubloader import load_epub_docs
 
 ############################  Doc Indexing State  #############################
 
