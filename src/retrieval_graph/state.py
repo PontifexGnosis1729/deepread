@@ -19,6 +19,7 @@ The module also includes type definitions and utility functions to support
 these state management operations.
 """
 
+import os
 import uuid
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal, Optional, Sequence, Union
@@ -26,6 +27,8 @@ from typing import Annotated, Any, Literal, Optional, Sequence, Union
 from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
+
+from .custom_epubloader import load_epub_docs
 
 ############################  Doc Indexing State  #############################
 
@@ -53,6 +56,12 @@ def reduce_docs(
     """
     if new == "delete":
         return []
+    if isinstance(new, str) and os.path.isfile(new):
+        # parse file path
+        docs = load_epub_docs(new)
+        updated_docs = [Document(page_content=doc.page_content, metadata={**doc.metadata, "source": new, "thread_id": str(uuid.uuid4())}) for doc in docs]
+
+        return updated_docs
     if isinstance(new, str):
         return [Document(page_content=new, metadata={"thread_id": str(uuid.uuid4())})]
     if isinstance(new, list):
