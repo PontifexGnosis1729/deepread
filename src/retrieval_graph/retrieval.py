@@ -10,9 +10,11 @@ import os
 from contextlib import contextmanager
 from typing import Generator
 
+import weaviate
 from langchain_core.embeddings import Embeddings
 from langchain_core.runnables import RunnableConfig
 from langchain_core.vectorstores import VectorStoreRetriever
+from langchain_weaviate import WeaviateVectorStore
 
 from retrieval_graph.configuration import Configuration, IndexConfiguration
 
@@ -23,6 +25,10 @@ def make_text_encoder(model: str) -> Embeddings:
     """Connect to the configured text encoder."""
     provider, model = model.split("/", maxsplit=1)
     match provider:
+        case "ollama":
+            from langchain_ollama import OllamaEmbeddings
+
+            return OllamaEmbeddings(model=model)
         case "openai":
             from langchain_openai import OpenAIEmbeddings
 
@@ -36,6 +42,25 @@ def make_text_encoder(model: str) -> Embeddings:
 
 
 ## Retriever constructors
+
+
+@contextmanager
+def make_weaviate_retriever(
+    configuration: IndexConfiguration, embedding_model: Embeddings
+) -> Generator[VectorStoreRetriever, None, None]:
+    with weaviate.connect_to_local() as weaviate_client:
+        store = WeaviateVectorStore(
+            client=weaviate_client,
+            index_name=WEAVIATE_DOCS_INDEX_NAME,
+            text_key="text",
+            embedding=embedding_model,
+            attributes=["source", "title"],
+        )
+        search_kwargs = configuration.search_kwargs
+
+        search_filter = search_kwargs.setdefault("filter", {})
+        search_filter.update({"user_id": configuration.user_id})
+        yield store.as_retriever(search_kwargs=search_kwargs)
 
 
 @contextmanager
@@ -115,6 +140,9 @@ def make_retriever(
     if not user_id:
         raise ValueError("Please provide a valid user_id in the configuration.")
     match configuration.retriever_provider:
+        case "weaviate":
+            with make_weaviate_retriever(configuration, embedding_model) as retriever:
+                yield retriever
         case "elastic" | "elastic-local":
             with make_elastic_retriever(configuration, embedding_model) as retriever:
                 yield retriever

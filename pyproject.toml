@@ -13,6 +13,7 @@ dependencies = [
     "langchain-mongodb>=0.1.9",
     "beautifulsoup4 (==4.12.2)",
     "langgraph-cli[inmem] (>=0.1.74,<0.2.0)",
+    "langchain-weaviate (>=0.0.4,<0.0.5)",
 ]
 
 [project.optional-dependencies]

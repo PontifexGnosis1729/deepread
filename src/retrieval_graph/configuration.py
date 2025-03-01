@@ -25,19 +25,19 @@ class IndexConfiguration:
         str,
         {"__template_metadata__": {"kind": "embeddings"}},
     ] = field(
-        default="openai/text-embedding-3-small",
+        default="ollama/nomic-embed-text",
         metadata={
             "description": "Name of the embedding model to use. Must be a valid embedding model name."
         },
     )
 
     retriever_provider: Annotated[
-        Literal["elastic", "elastic-local", "pinecone", "mongodb"],
+        Literal["weaviate"],
         {"__template_metadata__": {"kind": "retriever"}},
     ] = field(
-        default="elastic",
+        default="weaviate",
         metadata={
-            "description": "The vector store provider to use for retrieval. Options are 'elastic', 'pinecone', or 'mongodb'."
+            "description": "The vector store provider to use for retrieval. Options are 'weaviate'."
         },
     )
 
@@ -79,8 +79,8 @@ class Configuration(IndexConfiguration):
         metadata={"description": "The system prompt used for generating responses."},
     )
 
-    response_model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
-        default="anthropic/claude-3-5-sonnet-20240620",
+    response_model: str = field(
+        default="ollama/llama3.1:8b",
         metadata={
             "description": "The language model used for generating responses. Should be in the form: provider/model-name."
         },
@@ -93,8 +93,8 @@ class Configuration(IndexConfiguration):
         },
     )
 
-    query_model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
-        default="anthropic/claude-3-haiku-20240307",
+    query_model: str = field(
+        default="ollama/llama3.1:8b",
         metadata={
             "description": "The language model used for processing and refining queries. Should be in the form: provider/model-name."
         },
