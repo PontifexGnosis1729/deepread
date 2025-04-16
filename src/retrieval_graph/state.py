@@ -30,7 +30,7 @@ from langgraph.graph import add_messages
 
 from retrieval_graph.custom_epubloader import load_epub_docs
 
-############################  Doc Indexing State  #############################
+############################  Index State  #############################
 
 
 def reduce_docs(
@@ -89,6 +89,7 @@ class IndexState:
     these documents.
     """
 
+    file_path: str
     docs: Annotated[Sequence[Document], reduce_docs]
     """A list of documents that the agent can index."""
 
