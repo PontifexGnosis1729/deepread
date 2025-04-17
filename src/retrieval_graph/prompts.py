@@ -6,7 +6,7 @@ RESPONSE_SYSTEM_PROMPT = """You are a helpful AI assistant. Answer the user's qu
 
 System time: {system_time}"""
 
-QUERY_SYSTEM_PROMPT = """Generate search queries to retrieve documents that may help answer the user's question. Previously, you made the following queries:
+QUERY_SYSTEM_PROMPT = """Generate search queries to retrieve documents that may help answer the user's question. You have access to the entire text from the book the user is reading.
     
 <previous_queries/>
 {queries}

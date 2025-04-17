@@ -104,6 +104,7 @@ async def retrieve(
     with retrieval.make_retriever(config) as retriever:
         where_filter = Filter.by_property("source").equal(state.file_path)
         retriever.search_kwargs["filters"] = where_filter
+        retriever.search_kwargs["k"] = 9
 
         response = await retriever.ainvoke(state.queries[-1], config)
         return {"retrieved_docs": response}
