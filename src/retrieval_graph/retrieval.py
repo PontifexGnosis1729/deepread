@@ -82,3 +82,26 @@ def make_retriever(
                 f"Expected one of: {', '.join(Configuration.__annotations__['retriever_provider'].__args__)}\n"
                 f"Got: {configuration.retriever_provider}"
             )
+
+
+## Helper function to reset database
+
+
+def reset_retrieval_db(config: RunnableConfig):
+    configuration = IndexConfiguration.from_runnable_config(config)
+    user_id = configuration.user_id
+
+    if not user_id:
+        raise ValueError("Please provide a valid user_id in the configuration.")
+    match configuration.retriever_provider:
+        case "weaviate":
+            index_name = os.environ["WEAVIATE_DOCS_INDEX_NAME"]
+            with weaviate.connect_to_local() as weaviate_client:
+                weaviate_client.collections.delete(index_name)
+
+        case _:
+            raise ValueError(
+                "Unrecognized retriever_provider in configuration. "
+                f"Expected one of: {', '.join(Configuration.__annotations__['retriever_provider'].__args__)}\n"
+                f"Got: {configuration.retriever_provider}"
+            )

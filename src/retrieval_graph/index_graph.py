@@ -35,19 +35,16 @@ def ensure_docs_have_user_id(
 
 
 def ingest_docs(state: IndexState, *, config: Optional[RunnableConfig] = None) -> dict[str, str]:
-    '''
     if "reset" == state.file_path:
         WEAVIATE_DOCS_INDEX_NAME = os.environ["WEAVIATE_DOCS_INDEX_NAME"]
         RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+        record_manager = SQLRecordManager(f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL)
 
-        with retrieval.make_indexer(config) as vectorstore:
-            vectorstore.delete()
-            record_manager = SQLRecordManager(
-                f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
-            )
-            record_manager.delete_keys()
+        keys = record_manager.list_keys()
+        record_manager.delete_keys(keys)
+        retrieval.reset_retrieval_db(config)
+
         return {"docs": "delete"}
-    '''
 
     if not os.path.isfile(state.file_path):
         raise ValueError(f"invalid input file path: {state.file_path}")
