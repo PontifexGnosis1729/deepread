@@ -103,6 +103,7 @@ class InputState:
     to the outside world compared to what is maintained internally.
     """
 
+    file_path: str
     messages: Annotated[Sequence[AnyMessage], add_messages]
     """Messages track the primary execution state of the agent.
 

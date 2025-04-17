@@ -35,6 +35,20 @@ def ensure_docs_have_user_id(
 
 
 def ingest_docs(state: IndexState, *, config: Optional[RunnableConfig] = None) -> dict[str, str]:
+    '''
+    if "reset" == state.file_path:
+        WEAVIATE_DOCS_INDEX_NAME = os.environ["WEAVIATE_DOCS_INDEX_NAME"]
+        RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+
+        with retrieval.make_indexer(config) as vectorstore:
+            vectorstore.delete()
+            record_manager = SQLRecordManager(
+                f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
+            )
+            record_manager.delete_keys()
+        return {"docs": "delete"}
+    '''
+
     if not os.path.isfile(state.file_path):
         raise ValueError(f"invalid input file path: {state.file_path}")
 
@@ -61,7 +75,7 @@ async def index_docs(state: IndexState, *, config: Optional[RunnableConfig] = No
     WEAVIATE_DOCS_INDEX_NAME = os.environ["WEAVIATE_DOCS_INDEX_NAME"]
     RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
 
-    with retrieval.make_indexer(config) as retriever:
+    with retrieval.make_retriever(config) as retriever:
         stamped_docs = ensure_docs_have_user_id(state.docs, config)
         record_manager = SQLRecordManager(
             f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
@@ -71,7 +85,7 @@ async def index_docs(state: IndexState, *, config: Optional[RunnableConfig] = No
         index(
             docs_source=stamped_docs,
             record_manager=record_manager,
-            vector_store=retriever,         # your VectorStoreRetriever
+            vector_store=retriever.vectorstore,         # your VectorStoreRetriever
             cleanup="incremental",
             source_id_key="source",        # ensure your Document.metadata["source"] is set
         )

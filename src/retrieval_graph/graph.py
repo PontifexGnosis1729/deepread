@@ -9,12 +9,13 @@ relevant documents, and formulating responses.
 from datetime import datetime, timezone
 from typing import cast
 
+from pydantic import BaseModel
+from weaviate.classes.query import Filter
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph import StateGraph
+from langgraph.graph import StateGraph, START, END
 
 from retrieval_graph import retrieval
 from retrieval_graph.configuration import Configuration
@@ -101,6 +102,9 @@ async def retrieve(
         containing a list of retrieved Document objects.
     """
     with retrieval.make_retriever(config) as retriever:
+        where_filter = Filter.by_property("source").equal(state.file_path)
+        retriever.search_kwargs["filters"] = where_filter
+
         response = await retriever.ainvoke(state.queries[-1], config)
         return {"retrieved_docs": response}
 
@@ -141,9 +145,10 @@ builder = StateGraph(State, input=InputState, config_schema=Configuration)
 builder.add_node(generate_query)
 builder.add_node(retrieve)
 builder.add_node(respond)
-builder.add_edge("__start__", "generate_query")
+builder.add_edge(START, "generate_query")
 builder.add_edge("generate_query", "retrieve")
 builder.add_edge("retrieve", "respond")
+builder.add_edge("respond", END)
 
 # Finally, we compile it!
 # This compiles it into a graph you can invoke and deploy.
