@@ -166,3 +166,4 @@ uv.lock
 .langgraph_api/
 epubdata/
 data/
+*.db

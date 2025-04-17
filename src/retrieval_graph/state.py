@@ -19,7 +19,6 @@ The module also includes type definitions and utility functions to support
 these state management operations.
 """
 
-import os
 import uuid
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal, Optional, Sequence, Union
@@ -27,8 +26,6 @@ from typing import Annotated, Any, Literal, Optional, Sequence, Union
 from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
-
-from retrieval_graph.custom_epubloader import load_epub_docs
 
 ############################  Index State  #############################
 
@@ -56,27 +53,23 @@ def reduce_docs(
     """
     if new == "delete":
         return []
-    if isinstance(new, str) and os.path.isfile(new):
-        # parse file path
-        docs = load_epub_docs(new)
-        updated_docs = [Document(page_content=doc.page_content, metadata={**doc.metadata, "source": new, "thread_id": str(uuid.uuid4())}) for doc in docs]
 
-        return updated_docs
+    new_docs: list[Document]
     if isinstance(new, str):
-        return [Document(page_content=new, metadata={"thread_id": str(uuid.uuid4())})]
+        new_docs = [Document(page_content=new, metadata={"thread_id": str(uuid.uuid4())})]
     if isinstance(new, list):
-        coerced = []
+        new_docs = []
         for item in new:
             if isinstance(item, str):
-                coerced.append(
+                new_docs.append(
                     Document(page_content=item, metadata={"thread_id": str(uuid.uuid4())})
                 )
             elif isinstance(item, dict):
-                coerced.append(Document(**item))
+                new_docs.append(Document(**item))
             else:
-                coerced.append(item)
-        return coerced
-    return existing or []
+                new_docs.append(item)
+
+    return new_docs
 
 
 # The index state defines the simple IO for the single-node index graph

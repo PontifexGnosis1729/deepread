@@ -1,6 +1,8 @@
 """This "graph" simply exposes an endpoint for a user to upload docs to be indexed."""
+import os
 from typing import Optional, Sequence
 
+from langchain.indexes import SQLRecordManager, index
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
@@ -8,6 +10,8 @@ from langgraph.graph import StateGraph, START, END
 from retrieval_graph import retrieval
 from retrieval_graph.configuration import IndexConfiguration
 from retrieval_graph.state import IndexState
+from retrieval_graph.custom_epubloader import load_epub_docs
+
 
 
 def ensure_docs_have_user_id(
@@ -31,9 +35,13 @@ def ensure_docs_have_user_id(
 
 
 def ingest_docs(state: IndexState, *, config: Optional[RunnableConfig] = None) -> dict[str, str]:
-    print("Starting ingest_docs")
-    print(state.file_path)
-    return {"docs": "delete"}
+    if not os.path.isfile(state.file_path):
+        raise ValueError(f"invalid input file path: {state.file_path}")
+
+    # parse file path
+    docs = load_epub_docs(state.file_path)
+
+    return {"docs": docs}
 
 
 async def index_docs(state: IndexState, *, config: Optional[RunnableConfig] = None) -> dict[str, str]:
@@ -49,10 +57,25 @@ async def index_docs(state: IndexState, *, config: Optional[RunnableConfig] = No
     """
     if not config:
         raise ValueError("Configuration required to run index_docs.")
-    with retrieval.make_retriever(config) as retriever:
-        stamped_docs = ensure_docs_have_user_id(state.docs, config)
 
-        await retriever.aadd_documents(stamped_docs)
+    WEAVIATE_DOCS_INDEX_NAME = os.environ["WEAVIATE_DOCS_INDEX_NAME"]
+    RECORD_MANAGER_DB_URL = os.environ["RECORD_MANAGER_DB_URL"]
+
+    with retrieval.make_indexer(config) as retriever:
+        stamped_docs = ensure_docs_have_user_id(state.docs, config)
+        record_manager = SQLRecordManager(
+            f"weaviate/{WEAVIATE_DOCS_INDEX_NAME}", db_url=RECORD_MANAGER_DB_URL
+        )
+        record_manager.create_schema()
+
+        index(
+            docs_source=stamped_docs,
+            record_manager=record_manager,
+            vector_store=retriever,         # your VectorStoreRetriever
+            cleanup="incremental",
+            source_id_key="source",        # ensure your Document.metadata["source"] is set
+        )
+
     return {"docs": "delete"}
 
 
