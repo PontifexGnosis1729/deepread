@@ -52,36 +52,31 @@ async def generate_query(
         - For subsequent messages, it uses a language model to generate a refined query.
         - The function uses the configuration to set up the prompt and model for query generation.
     """
-    messages = state.messages
-    if len(messages) == 1:
-        # It's the first user question. We will use the input directly to search.
-        human_input = get_message_text(messages[-1])
-        return {"queries": [human_input]}
-    else:
-        configuration = Configuration.from_runnable_config(config)
-        # Feel free to customize the prompt, model, and other logic!
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", configuration.query_system_prompt),
-                ("placeholder", "{messages}"),
-            ]
-        )
-        model = load_chat_model(configuration.query_model).with_structured_output(
-            SearchQuery
-        )
+    human_input = get_message_text(state.messages[-1])
+    configuration = Configuration.from_runnable_config(config)
+    # Feel free to customize the prompt, model, and other logic!
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", configuration.query_system_prompt),
+            ("placeholder", "{messages}"),
+        ]
+    )
+    model = load_chat_model(configuration.query_model).with_structured_output(
+        SearchQuery
+    )
 
-        message_value = await prompt.ainvoke(
-            {
-                "messages": state.messages,
-                "queries": "\n- ".join(state.queries),
-                "system_time": datetime.now(tz=timezone.utc).isoformat(),
-            },
-            config,
-        )
-        generated = cast(SearchQuery, await model.ainvoke(message_value, config))
-        return {
-            "queries": [generated.query],
-        }
+    message_value = await prompt.ainvoke(
+        {
+            "messages": state.messages,
+            "current_query": human_input,
+            "queries": "\n- ".join(state.queries),
+            "system_time": datetime.now(tz=timezone.utc).isoformat(),
+        },
+        config,
+    )
+    generated = cast(SearchQuery, await model.ainvoke(message_value, config))
+
+    return {"queries": [generated.query]}
 
 
 async def retrieve(
