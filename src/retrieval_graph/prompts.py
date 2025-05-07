@@ -45,3 +45,19 @@ Rate the relevance of the <retrieved_doc> to the <current_query> on a scale from
 It is very important that your response is a single integer in the range between 1 and 5, without any explanation or context.
 Just give an integer response in the range between 1 and 5 based on the relavance.
 """
+
+GENERATE_QUERIES_SYSTEM_PROMPT = (
+    client.pull_prompt("langchain-ai/chat-langchain-generate-queries-prompt")
+    .messages[0]
+    .prompt.template
+)
+RESEARCH_PLAN_SYSTEM_PROMPT = (
+    client.pull_prompt("langchain-ai/chat-langchain-research-plan-prompt")
+    .messages[0]
+    .prompt.template
+)
+RESPONSE_SYSTEM_PROMPT = (
+    client.pull_prompt("langchain-ai/chat-langchain-response-prompt")
+    .messages[0]
+    .prompt.template
+)

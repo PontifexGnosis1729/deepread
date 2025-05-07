@@ -19,7 +19,6 @@ The module also includes type definitions and utility functions to support
 these state management operations.
 """
 
-import uuid
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal, Optional, Sequence, Union
 
@@ -27,49 +26,9 @@ from langchain_core.documents import Document
 from langchain_core.messages import AnyMessage
 from langgraph.graph import add_messages
 
+from retrieval_graph.utils import reduce_docs
+
 ############################  Index State  #############################
-
-
-def reduce_docs(
-    existing: Optional[Sequence[Document]],
-    new: Union[
-        Sequence[Document],
-        Sequence[dict[str, Any]],
-        Sequence[str],
-        str,
-        Literal["delete"],
-    ],
-) -> Sequence[Document]:
-    """Reduce and process documents based on the input type.
-
-    This function handles various input types and converts them into a sequence of Document objects.
-    It can delete existing documents, create new ones from strings or dictionaries, or return the existing documents.
-
-    Args:
-        existing (Optional[Sequence[Document]]): The existing docs in the state, if any.
-        new (Union[Sequence[Document], Sequence[dict[str, Any]], Sequence[str], str, Literal["delete"]]):
-            The new input to process. Can be a sequence of Documents, dictionaries, strings, a single string,
-            or the literal "delete".
-    """
-    if new == "delete":
-        return []
-
-    new_docs: list[Document]
-    if isinstance(new, str):
-        new_docs = [Document(page_content=new, metadata={"thread_id": str(uuid.uuid4())})]
-    if isinstance(new, list):
-        new_docs = []
-        for item in new:
-            if isinstance(item, str):
-                new_docs.append(
-                    Document(page_content=item, metadata={"thread_id": str(uuid.uuid4())})
-                )
-            elif isinstance(item, dict):
-                new_docs.append(Document(**item))
-            else:
-                new_docs.append(item)
-
-    return new_docs
 
 
 # The index state defines the simple IO for the single-node index graph
@@ -104,7 +63,7 @@ class InputState:
     """
 
     file_path: str
-    search_qry: str
+    raw_search_qry: str
 
 
 # This is the primary state of your agent, where you can store any information
@@ -127,10 +86,13 @@ def add_queries(existing: Sequence[str], new: Sequence[str]) -> Sequence[str]:
 class State(InputState):
     """The state of your graph / agent."""
 
-    queries: Annotated[list[str], add_queries] = field(default_factory=list)
+    steps: list[str] = field(default_factory=list)
+    """A list of steps in the research plan."""
+
+    llm_generated_qry: Annotated[list[str], add_queries] = field(default_factory=list)
     """A list of search queries that the agent has generated."""
 
-    retrieved_docs: list[Document] = field(default_factory=list)
+    retrieved_docs: Annotated[list[Document], reduce_docs] = field(default_factory=list)
     """Populated by the retriever. This is a list of documents that the agent can reference."""
 
     reranked_docs: list[Document] = field(default_factory=list)

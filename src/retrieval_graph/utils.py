@@ -8,7 +8,8 @@ Functions:
     format_docs: Convert documents to an xml-formatted string.
 """
 
-from typing import Optional
+import uuid
+from typing import Annotated, Any, Literal, Optional, Sequence, Union
 
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
@@ -109,3 +110,45 @@ def load_chat_model(fully_specified_name: str) -> BaseChatModel:
         provider = ""
         model = fully_specified_name
     return init_chat_model(model, model_provider=provider)
+
+
+def reduce_docs(
+    existing: Optional[Sequence[Document]],
+    new: Union[
+        Sequence[Document],
+        Sequence[dict[str, Any]],
+        Sequence[str],
+        str,
+        Literal["delete"],
+    ],
+) -> Sequence[Document]:
+    """Reduce and process documents based on the input type.
+
+    This function handles various input types and converts them into a sequence of Document objects.
+    It can delete existing documents, create new ones from strings or dictionaries, or return the existing documents.
+
+    Args:
+        existing (Optional[Sequence[Document]]): The existing docs in the state, if any.
+        new (Union[Sequence[Document], Sequence[dict[str, Any]], Sequence[str], str, Literal["delete"]]):
+            The new input to process. Can be a sequence of Documents, dictionaries, strings, a single string,
+            or the literal "delete".
+    """
+    if new == "delete":
+        return []
+
+    new_docs: list[Document]
+    if isinstance(new, str):
+        new_docs = [Document(page_content=new, metadata={"thread_id": str(uuid.uuid4())})]
+    if isinstance(new, list):
+        new_docs = []
+        for item in new:
+            if isinstance(item, str):
+                new_docs.append(
+                    Document(page_content=item, metadata={"thread_id": str(uuid.uuid4())})
+                )
+            elif isinstance(item, dict):
+                new_docs.append(Document(**item))
+            else:
+                new_docs.append(item)
+
+    return new_docs
