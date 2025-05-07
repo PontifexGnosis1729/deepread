@@ -6,7 +6,6 @@ and key functions for processing user inputs, generating queries, retrieving
 relevant documents, and formulating responses.
 """
 
-from datetime import datetime, timezone
 from typing import cast
 
 from pydantic import BaseModel
@@ -20,7 +19,7 @@ from langgraph.graph import StateGraph, START, END
 from retrieval_graph import retrieval
 from retrieval_graph.configuration import Configuration
 from retrieval_graph.state import InputState, State
-from retrieval_graph.utils import format_docs, get_message_text, load_chat_model
+from retrieval_graph.utils import format_docs, load_chat_model
 
 # Define the function that calls the model
 
@@ -52,25 +51,16 @@ async def generate_query(
         - For subsequent messages, it uses a language model to generate a refined query.
         - The function uses the configuration to set up the prompt and model for query generation.
     """
-    human_input = get_message_text(state.messages[-1])
+    human_input = state.search_qry
     configuration = Configuration.from_runnable_config(config)
     # Feel free to customize the prompt, model, and other logic!
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", configuration.query_system_prompt),
-            ("placeholder", "{messages}"),
-        ]
-    )
-    model = load_chat_model(configuration.query_model).with_structured_output(
-        SearchQuery
-    )
+    prompt = ChatPromptTemplate.from_template(configuration.query_system_prompt)
+
+    model = load_chat_model(configuration.query_model).with_structured_output(SearchQuery)
 
     message_value = await prompt.ainvoke(
         {
-            "messages": state.messages,
             "current_query": human_input,
-            "queries": "\n- ".join(state.queries),
-            "system_time": datetime.now(tz=timezone.utc).isoformat(),
         },
         config,
     )
@@ -105,26 +95,52 @@ async def retrieve(
         return {"retrieved_docs": response}
 
 
+async def rerank(state: State, *, config: RunnableConfig) -> dict[str, list[Document]]:
+    """Rerank documents based on relevance to the query in the state."""
+    configuration = Configuration.from_runnable_config(config)
+
+    query = state.search_qry
+    unsorted_docs = state.retrieved_docs
+
+    # Example using LLM-based reranking
+    scored_docs = []
+    prompt = ChatPromptTemplate.from_template(configuration.rerank_system_prompt)
+    model = load_chat_model(configuration.rerank_model)
+
+    for doc in unsorted_docs:
+        message_value = await prompt.ainvoke(
+            {
+                "current_query": query,
+                "retrieved_doc": doc.page_content,
+            },
+            config,
+        )
+        score_str = await model.ainvoke(message_value, config)
+        score = int(score_str.content)
+        scored_docs.append((doc, score))
+
+    # Sort by score descending
+    sorted_tp = sorted(scored_docs, key=lambda x: x[1], reverse=True)
+    reranked_docs = [tp[0] for tp in sorted_tp]
+
+
+    return {"reranked_docs": reranked_docs}
+
+
 async def respond(
     state: State, *, config: RunnableConfig
 ) -> dict[str, list[BaseMessage]]:
     """Call the LLM powering our "agent"."""
     configuration = Configuration.from_runnable_config(config)
-    # Feel free to customize the prompt, model, and other logic!
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", configuration.response_system_prompt),
-            ("placeholder", "{messages}"),
-        ]
-    )
+
+    prompt = ChatPromptTemplate.from_template(configuration.response_system_prompt)
     model = load_chat_model(configuration.response_model)
 
-    retrieved_docs = format_docs(state.retrieved_docs)
+    reranked_docs = format_docs(state.reranked_docs)
     message_value = await prompt.ainvoke(
         {
-            "messages": state.messages,
-            "retrieved_docs": retrieved_docs,
-            "system_time": datetime.now(tz=timezone.utc).isoformat(),
+            "current_query": state.search_qry,
+            "reranked_docs": reranked_docs,
         },
         config,
     )
@@ -140,10 +156,13 @@ builder = StateGraph(State, input=InputState, config_schema=Configuration)
 
 builder.add_node(generate_query)
 builder.add_node(retrieve)
+builder.add_node(rerank)
 builder.add_node(respond)
+
 builder.add_edge(START, "generate_query")
 builder.add_edge("generate_query", "retrieve")
-builder.add_edge("retrieve", "respond")
+builder.add_edge("retrieve", "rerank")
+builder.add_edge("rerank", "respond")
 builder.add_edge("respond", END)
 
 # Finally, we compile it!

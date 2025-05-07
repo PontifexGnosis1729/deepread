@@ -74,10 +74,9 @@ T = TypeVar("T", bound=IndexConfiguration)
 class Configuration(IndexConfiguration):
     """The configuration for the agent."""
 
-    response_system_prompt: str = field(
-        default=prompts.RESPONSE_SYSTEM_PROMPT,
-        metadata={"description": "The system prompt used for generating responses."},
-    )
+    response_system_prompt = prompts.RESPONSE_SYSTEM_PROMPT
+    query_system_prompt = prompts.QUERY_SYSTEM_PROMPT
+    rerank_system_prompt = prompts.RERANK_SYSTEM_PROMPT
 
     response_model: str = field(
         default="ollama/llama3.1:8b",
@@ -86,16 +85,16 @@ class Configuration(IndexConfiguration):
         },
     )
 
-    query_system_prompt: str = field(
-        default=prompts.QUERY_SYSTEM_PROMPT,
-        metadata={
-            "description": "The system prompt used for processing and refining queries."
-        },
-    )
-
     query_model: str = field(
         default="ollama/llama3.1:8b",
         metadata={
             "description": "The language model used for processing and refining queries. Should be in the form: provider/model-name."
+        },
+    )
+
+    rerank_model: str = field(
+        default="ollama/llama3.1:8b",
+        metadata={
+            "description": "The language model used for reranking documents. Should be in the form: provider/model-name."
         },
     )
