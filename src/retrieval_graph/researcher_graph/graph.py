@@ -110,7 +110,9 @@ async def retrieve_documents(state: ResearcherState, *, config: RunnableConfig) 
 
         for qry in state.llm_hyde_passages:
             response = await retriever.ainvoke(qry, config)
-            out.extend(response)
+            stamped_docs = [Document(page_content=doc.page_content, metadata={**doc.metadata, "research_step": state.research_step}) for doc in response]
+            out.extend(stamped_docs)
+
 
         return {"research_documents": out}
 

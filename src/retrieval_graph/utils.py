@@ -9,7 +9,8 @@ Functions:
 """
 
 import uuid
-from typing import Annotated, Any, Literal, Optional, Sequence, Union
+import hashlib
+from typing import Any, Literal, Optional, Sequence, Union
 
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
@@ -157,3 +158,17 @@ def reduce_docs(
 
     # Return the combined list: existing + new
     return list(existing) + new_docs
+
+
+def deduplicate_documents(docs: list[Document]) -> list[Document]:
+    seen = set()
+    unique_docs = []
+    
+    for doc in docs:
+        key = hashlib.sha256(doc.page_content.encode()).hexdigest()
+
+        if key not in seen:
+            seen.add(key)
+            unique_docs.append(doc)
+    
+    return unique_docs

@@ -18,7 +18,7 @@ from langgraph.graph import StateGraph, START, END
 from retrieval_graph.configuration import Configuration
 from retrieval_graph.state import InputState, State
 from retrieval_graph.researcher_graph.graph import graph as researcher_graph
-from retrieval_graph.utils import format_docs, load_chat_model
+from retrieval_graph.utils import format_docs, load_chat_model, deduplicate_documents
 
 # Define the function that calls the model
 
@@ -65,7 +65,6 @@ async def conduct_research(state: State, *, config: RunnableConfig) -> dict[str,
                               'research_plan' containing the remaining research steps.
     """
 
-    #TODO: double check documents dont create duplicates
     result = await researcher_graph.ainvoke({"research_step": state.research_plan[0], "raw_search_qry": state.raw_search_qry, "file_path": state.file_path})
 
     return {"retrieved_docs": result["research_documents"], "research_plan": state.research_plan[1:]}
@@ -99,7 +98,7 @@ async def rerank(state: State, *, config: RunnableConfig) -> dict[str, list[Docu
     configuration = Configuration.from_runnable_config(config)
 
     query = state.raw_search_qry
-    unsorted_docs = state.retrieved_docs
+    unsorted_docs = deduplicate_documents(state.retrieved_docs)
 
     # Example using LLM-based reranking
     scored_docs = []
