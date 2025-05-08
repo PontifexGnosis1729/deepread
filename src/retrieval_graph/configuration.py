@@ -75,8 +75,10 @@ class Configuration(IndexConfiguration):
     """The configuration for the agent."""
 
     response_system_prompt = prompts.RESPONSE_SYSTEM_PROMPT
-    query_system_prompt = prompts.QUERY_SYSTEM_PROMPT
+    generate_hyde_passage_system_prompt = prompts.GENERATE_HYDE_PASSAGE_SYSTEM_PROMPT
     rerank_system_prompt = prompts.RERANK_SYSTEM_PROMPT
+    generate_queries_system_prompt = prompts.GENERATE_QUERIES_SYSTEM_PROMPT
+    research_plan_system_prompt = prompts.RESEARCH_PLAN_SYSTEM_PROMPT
 
     response_model: str = field(
         default="ollama/llama3.1:8b",

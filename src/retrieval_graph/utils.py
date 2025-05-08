@@ -133,6 +133,10 @@ def reduce_docs(
             The new input to process. Can be a sequence of Documents, dictionaries, strings, a single string,
             or the literal "delete".
     """
+    # If there are no existing documents, treat it as an empty list
+    if existing is None:
+        existing = []
+
     if new == "delete":
         return []
 
@@ -151,4 +155,5 @@ def reduce_docs(
             else:
                 new_docs.append(item)
 
-    return new_docs
+    # Return the combined list: existing + new
+    return list(existing) + new_docs

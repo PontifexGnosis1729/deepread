@@ -7,15 +7,15 @@ which is responsible for generating search queries and retrieving relevant docum
 from typing import cast
 
 from pydantic import BaseModel
+from weaviate.classes.query import Filter
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableConfig
-from langgraph.constants import Send
-from langgraph.graph import END, START, StateGraph
-from typing_extensions import TypedDict
+from langchain_core.prompts import ChatPromptTemplate
+from langgraph.graph import StateGraph, START, END
 
 from retrieval_graph import retrieval
 from retrieval_graph.configuration import Configuration
-from retrieval_graph.researcher_graph.state import QueryState, ResearcherState
+from retrieval_graph.researcher_graph.state import ResearcherState
 from retrieval_graph.utils import load_chat_model
 
 
@@ -31,24 +31,65 @@ async def generate_queries(state: ResearcherState, *, config: RunnableConfig) ->
     Returns:
         dict[str, list[str]]: A dictionary with a 'queries' key containing the list of generated search queries.
     """
-
-    class Response(BaseModel):
+    class SearchQuery(BaseModel):
         queries: list[str]
 
+
     configuration = Configuration.from_runnable_config(config)
-    model = load_chat_model(configuration.query_model).with_structured_output(Response)
+    prompt = ChatPromptTemplate.from_template(configuration.generate_queries_system_prompt)
+    model = load_chat_model(configuration.query_model).with_structured_output(SearchQuery)
 
-    #TODO: fix prompt
-    messages = [
-        {"role": "system", "content": configuration.generate_queries_system_prompt},
-        {"role": "human", "content": state.question},
-    ]
-    response = cast(Response, await model.ainvoke(messages))
+    message_value = await prompt.ainvoke(
+        {
+            "current_query": state.question,
+        },
+        config,
+    )
+    response = cast(SearchQuery, await model.ainvoke(message_value, config))
 
-    return {"queries": response.queries}
+    return {"llm_generated_queries": response.queries}
 
 
-async def retrieve_documents(state: QueryState, *, config: RunnableConfig) -> dict[str, list[Document]]:
+async def generate_hyde_passages(state: ResearcherState, *, config: RunnableConfig) -> dict[str, list[str]]:
+    """Generate a search query based on the current state and configuration.
+
+    This function analyzes the messages in the state and generates an appropriate
+    search query. For the first message, it uses the user's input directly.
+    For subsequent messages, it uses a language model to generate a refined query.
+
+    Args:
+        state (State): The current state containing messages and other information.
+        config (RunnableConfig | None, optional): Configuration for the query generation process.
+
+    Returns:
+        dict[str, list[str]]: A dictionary with a 'queries' key containing a list of generated queries.
+
+    Behavior:
+        - If there's only one message (first user input), it uses that as the query.
+        - For subsequent messages, it uses a language model to generate a refined query.
+        - The function uses the configuration to set up the prompt and model for query generation.
+    """
+
+    configuration = Configuration.from_runnable_config(config)
+
+    prompt = ChatPromptTemplate.from_template(configuration.generate_hyde_passage_system_prompt)
+    model = load_chat_model(configuration.query_model)
+    hyde_passages = []
+
+    for qry in state.llm_generated_queries:
+        message_value = await prompt.ainvoke(
+            {
+                "current_query": qry,
+            },
+            config,
+        )
+        response = await model.ainvoke(message_value, config)
+        hyde_passages.append(response.content)
+
+    return {"llm_hyde_passages": hyde_passages}
+
+
+async def retrieve_documents(state: ResearcherState, *, config: RunnableConfig) -> dict[str, list[Document]]:
     """Retrieve documents based on a given query.
 
     This function uses a retriever to fetch relevant documents for a given query.
@@ -60,40 +101,30 @@ async def retrieve_documents(state: QueryState, *, config: RunnableConfig) -> di
     Returns:
         dict[str, list[Document]]: A dictionary with a 'documents' key containing the list of retrieved documents.
     """
+    out = []
+
+    #TODO: filter out duplicate docs
     with retrieval.make_retriever(config) as retriever:
-        response = await retriever.ainvoke(state.query, config)
-        return {"research_documents": response}
+        where_filter = Filter.by_property("source").equal(state.file_path)
+        retriever.search_kwargs["filters"] = where_filter
+        retriever.search_kwargs["k"] = 5
 
+        for qry in state.llm_hyde_passages:
+            response = await retriever.ainvoke(qry, config)
+            out.extend(response)
 
-def retrieve_in_parallel(state: ResearcherState) -> list[Send]:
-    """Create parallel retrieval tasks for each generated query.
-
-    This function prepares parallel document retrieval tasks for each query in the researcher's state.
-
-    Args:
-        state (ResearcherState): The current state of the researcher, including the generated queries.
-
-    Returns:
-        Literal["retrieve_documents"]: A list of Send objects, each representing a document retrieval task.
-
-    Behavior:
-        - Creates a Send object for each query in the state.
-        - Each Send object targets the "retrieve_documents" node with the corresponding query.
-    """
-    return [Send("retrieve_documents", QueryState(query=query)) for query in state.queries]
+        return {"research_documents": out}
 
 
 # Define the graph
 builder = StateGraph(ResearcherState)
 builder.add_node(generate_queries)
+builder.add_node(generate_hyde_passages)
 builder.add_node(retrieve_documents)
 
 builder.add_edge(START, "generate_queries")
-builder.add_conditional_edges(
-    "generate_queries",
-    retrieve_in_parallel,  # type: ignore
-    path_map=["retrieve_documents"],
-)
+builder.add_edge("generate_queries", "generate_hyde_passages")
+builder.add_edge("generate_hyde_passages", "retrieve_documents")
 builder.add_edge("retrieve_documents", END)
 
 # Compile into a graph object that you can invoke and deploy.

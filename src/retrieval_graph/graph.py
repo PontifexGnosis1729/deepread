@@ -9,14 +9,12 @@ relevant documents, and formulating responses.
 from typing import Any, Literal, cast
 
 from pydantic import BaseModel
-from weaviate.classes.query import Filter
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
 
-from retrieval_graph import retrieval
 from retrieval_graph.configuration import Configuration
 from retrieval_graph.state import InputState, State
 from retrieval_graph.researcher_graph.graph import graph as researcher_graph
@@ -36,19 +34,22 @@ async def create_research_plan(state: State, *, config: RunnableConfig) -> dict[
         dict[str, list[str]]: A dictionary with a 'steps' key containing the list of research steps.
     """
 
-    class Plan(BaseModel):
+    class ResearchPlan(BaseModel):
         """Generate research plan."""
 
         steps: list[str]
 
     configuration = Configuration.from_runnable_config(config)
-    model = load_chat_model(configuration.query_model).with_structured_output(Plan)
+    prompt = ChatPromptTemplate.from_template(configuration.research_plan_system_prompt)
+    model = load_chat_model(configuration.query_model).with_structured_output(ResearchPlan)
 
-    #TODO: fix prompt
-    messages = [
-        {"role": "system", "content": configuration.research_plan_system_prompt}
-    ] + state.messages
-    response = cast(Plan, await model.ainvoke(messages))
+    message_value = await prompt.ainvoke(
+        {
+            "current_query": state.raw_search_qry,
+        },
+        config,
+    )
+    response = cast(ResearchPlan, await model.ainvoke(message_value, config))
 
     return {"steps": response.steps}
 
@@ -71,12 +72,12 @@ async def conduct_research(state: State, *, config: RunnableConfig) -> dict[str,
     """
 
     #TODO: double check documents dont create duplicates
-    result = await researcher_graph.ainvoke({"question": state.steps[0]})
+    result = await researcher_graph.ainvoke({"question": state.steps[0], "file_path": state.file_path})
 
     return {"retrieved_docs": result["research_documents"], "steps": state.steps[1:]}
 
 
-def check_finished(state: State, *, config: RunnableConfig) -> Literal["respond", "conduct_research"]:
+def check_finished(state: State, *, config: RunnableConfig) -> Literal["rerank", "conduct_research"]:
     """Determine if the research process is complete or if more research is needed.
 
     This function checks if there are any remaining steps in the research plan:
@@ -93,73 +94,6 @@ def check_finished(state: State, *, config: RunnableConfig) -> Literal["respond"
         return "conduct_research"
     else:
         return "rerank"
-
-
-class SearchQuery(BaseModel):
-    """Search the indexed documents for a query."""
-
-    query: str
-
-
-async def generate_query(state: State, *, config: RunnableConfig) -> dict[str, list[str]]:
-    """Generate a search query based on the current state and configuration.
-
-    This function analyzes the messages in the state and generates an appropriate
-    search query. For the first message, it uses the user's input directly.
-    For subsequent messages, it uses a language model to generate a refined query.
-
-    Args:
-        state (State): The current state containing messages and other information.
-        config (RunnableConfig | None, optional): Configuration for the query generation process.
-
-    Returns:
-        dict[str, list[str]]: A dictionary with a 'queries' key containing a list of generated queries.
-
-    Behavior:
-        - If there's only one message (first user input), it uses that as the query.
-        - For subsequent messages, it uses a language model to generate a refined query.
-        - The function uses the configuration to set up the prompt and model for query generation.
-    """
-    human_input = state.raw_search_qry
-    configuration = Configuration.from_runnable_config(config)
-    # Feel free to customize the prompt, model, and other logic!
-    prompt = ChatPromptTemplate.from_template(configuration.query_system_prompt)
-
-    model = load_chat_model(configuration.query_model).with_structured_output(SearchQuery)
-
-    message_value = await prompt.ainvoke(
-        {
-            "current_query": human_input,
-        },
-        config,
-    )
-    generated = cast(SearchQuery, await model.ainvoke(message_value, config))
-
-    return {"llm_generated_qry": [generated.query]}
-
-
-async def retrieve(state: State, *, config: RunnableConfig) -> dict[str, list[Document]]:
-    """Retrieve documents based on the latest query in the state.
-
-    This function takes the current state and configuration, uses the latest query
-    from the state to retrieve relevant documents using the retriever, and returns
-    the retrieved documents.
-
-    Args:
-        state (State): The current state containing queries and the retriever.
-        config (RunnableConfig | None, optional): Configuration for the retrieval process.
-
-    Returns:
-        dict[str, list[Document]]: A dictionary with a single key "retrieved_docs"
-        containing a list of retrieved Document objects.
-    """
-    with retrieval.make_retriever(config) as retriever:
-        where_filter = Filter.by_property("source").equal(state.file_path)
-        retriever.search_kwargs["filters"] = where_filter
-        retriever.search_kwargs["k"] = 10
-
-        response = await retriever.ainvoke(state.llm_generated_qry[-1], config)
-        return {"retrieved_docs": response}
 
 
 async def rerank(state: State, *, config: RunnableConfig) -> dict[str, list[Document]]:
@@ -223,7 +157,6 @@ async def respond(state: State, *, config: RunnableConfig) -> dict[str, list[Bas
 
 builder = StateGraph(State, input=InputState, config_schema=Configuration)
 
-#builder.add_node(generate_query)
 builder.add_node(create_research_plan)
 builder.add_node(conduct_research)
 builder.add_node(rerank)
