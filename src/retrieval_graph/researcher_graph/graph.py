@@ -20,9 +20,7 @@ from retrieval_graph.utils import load_chat_model
 
 
 async def generate_queries(state: ResearcherState, *, config: RunnableConfig) -> dict[str, list[str]]:
-    """Generate search queries based on the question (a step in the research plan).
-
-    This function uses a language model to generate diverse search queries to help answer the question.
+    """Generate search queries based on a step in the research plan and the users query.
 
     Args:
         state (ResearcherState): The current state of the researcher, including the user's question.
@@ -41,7 +39,8 @@ async def generate_queries(state: ResearcherState, *, config: RunnableConfig) ->
 
     message_value = await prompt.ainvoke(
         {
-            "current_query": state.question,
+            "original_query": state.raw_search_qry,
+            "research_step": state.research_step,
         },
         config,
     )
@@ -107,7 +106,7 @@ async def retrieve_documents(state: ResearcherState, *, config: RunnableConfig) 
     with retrieval.make_retriever(config) as retriever:
         where_filter = Filter.by_property("source").equal(state.file_path)
         retriever.search_kwargs["filters"] = where_filter
-        retriever.search_kwargs["k"] = 5
+        retriever.search_kwargs["k"] = 3
 
         for qry in state.llm_hyde_passages:
             response = await retriever.ainvoke(qry, config)

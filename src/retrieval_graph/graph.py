@@ -24,14 +24,14 @@ from retrieval_graph.utils import format_docs, load_chat_model
 
 
 async def create_research_plan(state: State, *, config: RunnableConfig) -> dict[str, list[str]]:
-    """Create a step-by-step research plan for answering a LangChain-related query.
+    """Create a step-by-step research plan for finding passages from a book.
 
     Args:
         state (AgentState): The current state of the agent, including conversation history.
         config (RunnableConfig): Configuration with the model used to generate the plan.
 
     Returns:
-        dict[str, list[str]]: A dictionary with a 'steps' key containing the list of research steps.
+        dict[str, list[str]]: A dictionary with a 'research_plan' key containing the list of research steps.
     """
 
     class ResearchPlan(BaseModel):
@@ -51,30 +51,24 @@ async def create_research_plan(state: State, *, config: RunnableConfig) -> dict[
     )
     response = cast(ResearchPlan, await model.ainvoke(message_value, config))
 
-    return {"steps": response.steps}
+    return {"research_plan": response.steps}
 
 
 async def conduct_research(state: State, *, config: RunnableConfig) -> dict[str, Any]:
     """Execute the first step of the research plan.
-
-    This function takes the first step from the research plan and uses it to conduct research.
 
     Args:
         state (AgentState): The current state of the agent, including the research plan steps.
 
     Returns:
         dict[str, list[str]]: A dictionary with 'documents' containing the research results and
-                              'steps' containing the remaining research steps.
-
-    Behavior:
-        - Invokes the researcher_graph with the first step of the research plan.
-        - Updates the state with the retrieved documents and removes the completed step.
+                              'research_plan' containing the remaining research steps.
     """
 
     #TODO: double check documents dont create duplicates
-    result = await researcher_graph.ainvoke({"question": state.steps[0], "file_path": state.file_path})
+    result = await researcher_graph.ainvoke({"research_step": state.research_plan[0], "raw_search_qry": state.raw_search_qry, "file_path": state.file_path})
 
-    return {"retrieved_docs": result["research_documents"], "steps": state.steps[1:]}
+    return {"retrieved_docs": result["research_documents"], "research_plan": state.research_plan[1:]}
 
 
 def check_finished(state: State, *, config: RunnableConfig) -> Literal["rerank", "conduct_research"]:
@@ -90,7 +84,7 @@ def check_finished(state: State, *, config: RunnableConfig) -> Literal["rerank",
     Returns:
         Literal["respond", "conduct_research"]: The next step to take based on whether research is complete.
     """
-    if len(state.steps or []) > 0:
+    if len(state.research_plan or []) > 0:
         return "conduct_research"
     else:
         return "rerank"
@@ -149,7 +143,7 @@ async def respond(state: State, *, config: RunnableConfig) -> dict[str, list[Bas
     )
     response = await model.ainvoke(message_value, config)
 
-    return {"messages": [response]}
+    return {"messages": [response], "retrieved_docs": "delete"}
 
 
 # Define a new graph (It's just a pipe)
