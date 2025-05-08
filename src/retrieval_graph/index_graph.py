@@ -8,15 +8,13 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
 
 from retrieval_graph import retrieval
+from retrieval_graph.state import InputIndexState, IndexState
 from retrieval_graph.configuration import IndexConfiguration
-from retrieval_graph.state import IndexState
 from retrieval_graph.custom_epubloader import load_epub_docs
 
 
 
-def ensure_docs_have_user_id(
-    docs: Sequence[Document], config: RunnableConfig
-) -> list[Document]:
+def ensure_docs_have_user_id(docs: Sequence[Document], config: RunnableConfig) -> list[Document]:
     """Ensure that all documents have a user_id in their metadata.
 
         docs (Sequence[Document]): A sequence of Document objects to process.
@@ -26,12 +24,8 @@ def ensure_docs_have_user_id(
         list[Document]: A new list of Document objects with updated metadata.
     """
     user_id = config["configurable"]["user_id"]
-    return [
-        Document(
-            page_content=doc.page_content, metadata={**doc.metadata, "user_id": user_id}
-        )
-        for doc in docs
-    ]
+
+    return [Document(page_content=doc.page_content, metadata={**doc.metadata, "user_id": user_id}) for doc in docs]
 
 
 def ingest_docs(state: IndexState, *, config: Optional[RunnableConfig] = None) -> dict[str, str]:
@@ -57,10 +51,6 @@ def ingest_docs(state: IndexState, *, config: Optional[RunnableConfig] = None) -
 
 async def index_docs(state: IndexState, *, config: Optional[RunnableConfig] = None) -> dict[str, str]:
     """Asynchronously index documents in the given state using the configured retriever.
-
-    This function takes the documents from the state, ensures they have a user ID,
-    adds them to the retriever's index, and then signals for the documents to be
-    deleted from the state.
 
     Args:
         state (IndexState): The current state containing documents and retriever.
@@ -91,7 +81,7 @@ async def index_docs(state: IndexState, *, config: Optional[RunnableConfig] = No
 
 
 # Define a new graph
-builder = StateGraph(IndexState, config_schema=IndexConfiguration)
+builder = StateGraph(IndexState, input=InputIndexState, config_schema=IndexConfiguration)
 builder.add_node(ingest_docs)
 builder.add_node(index_docs)
 builder.add_edge(START, "ingest_docs")

@@ -31,9 +31,14 @@ from retrieval_graph.utils import reduce_docs
 ############################  Index State  #############################
 
 
+@dataclass(kw_only=True)
+class InputIndexState:
+    file_path: str
+
+
 # The index state defines the simple IO for the single-node index graph
 @dataclass(kw_only=True)
-class IndexState:
+class IndexState(InputIndexState):
     """Represents the state for document indexing and retrieval.
 
     This class defines the structure of the index state, which includes
@@ -41,7 +46,6 @@ class IndexState:
     these documents.
     """
 
-    file_path: str
     docs: Annotated[Sequence[Document], reduce_docs]
     """A list of documents that the agent can index."""
 
