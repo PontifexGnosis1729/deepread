@@ -33,7 +33,7 @@ from retrieval_graph.utils import reduce_docs
 
 @dataclass(kw_only=True)
 class InputIndexState:
-    file_path: str
+    input_file_path: str
 
 
 # The index state defines the simple IO for the single-node index graph
@@ -45,6 +45,12 @@ class IndexState(InputIndexState):
     the documents to be indexed and the retriever used for searching
     these documents.
     """
+
+    target_file: str = field(default_factory=str)
+    """current target file to index."""
+
+    working_dir: list[str] = field(default_factory=list)
+    """working directory of remaining files to be indexed."""
 
     docs: Annotated[Sequence[Document], reduce_docs]
     """A list of documents that the agent can index."""

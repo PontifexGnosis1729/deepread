@@ -102,7 +102,6 @@ async def retrieve_documents(state: ResearcherState, *, config: RunnableConfig) 
     """
     out = []
 
-    #TODO: filter out duplicate docs
     with retrieval.make_retriever(config) as retriever:
         where_filter = Filter.by_property("source").equal(state.file_path)
         retriever.search_kwargs["filters"] = where_filter
