@@ -132,6 +132,7 @@ async def respond(state: State, *, config: RunnableConfig) -> dict[str, list[Bas
     prompt = ChatPromptTemplate.from_template(configuration.response_system_prompt)
     model = load_chat_model(configuration.response_model)
 
+    #TODO: pass only top k docs
     reranked_docs = format_docs(state.reranked_docs)
     message_value = await prompt.ainvoke(
         {

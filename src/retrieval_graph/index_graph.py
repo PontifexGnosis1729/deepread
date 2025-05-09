@@ -15,14 +15,7 @@ from retrieval_graph.custom_epubloader import load_epub_docs
 
 
 def ensure_docs_have_user_id(docs: Sequence[Document], config: RunnableConfig) -> list[Document]:
-    """Ensure that all documents have a user_id in their metadata.
-
-        docs (Sequence[Document]): A sequence of Document objects to process.
-        config (RunnableConfig): A configuration object containing the user_id.
-
-    Returns:
-        list[Document]: A new list of Document objects with updated metadata.
-    """
+    """Ensure that all documents have a user_id in their metadata."""
     user_id = config["configurable"]["user_id"]
 
     return [Document(page_content=doc.page_content, metadata={**doc.metadata, "user_id": user_id}) for doc in docs]

@@ -6,7 +6,6 @@ from langchain.document_loaders.base import BaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-
 def load_epub_docs(file_path=None):
     EPUB_DATA_DIR = "/Users/riverhedgehog/code/hackaitx25final/epubdata"
     epub_file = f"{EPUB_DATA_DIR}/superintelligence.epub"
@@ -14,10 +13,14 @@ def load_epub_docs(file_path=None):
     if file_path is None:
         file_path = epub_file
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+    smart_splitter = RecursiveCharacterTextSplitter(
+        separators=["\n\n", "\n", ". "],
+        chunk_size=1500,
+        chunk_overlap=0,
+    )
 
     docs = CustomEpubLoader(file_path).load()
-    docs_transformed = text_splitter.split_documents( docs )
+    docs_transformed = smart_splitter.split_documents( docs )
 
     return docs_transformed
 
